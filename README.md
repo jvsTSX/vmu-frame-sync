@@ -1,4 +1,4 @@
-#VMU Frame Sync
+# VMU Frame Sync
 This small example routine uses the base timer in direct quartz mode to provide your application a perfect vertical sync with the LCD
 ## Requirements
 - Your app must run on the 1MHz mode, anything slower is not guaranteed to work
