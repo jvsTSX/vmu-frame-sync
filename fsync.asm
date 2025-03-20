@@ -66,14 +66,33 @@ BaseTmEx:
 ;  /////////////////////////////////////////////////////////////
 Start:
 		mov #0, P3INT
+		mov #0, BTCR
+
+		set1 VSEL, 4 ; autoinc on
+		mov #1, VRMAD2
+		mov #$FD, VRMAD1
+		
+		ld VTRBF
+	bnz .ResetValue
+		ld VTRBF
+	be #$FF, .KeepValue
+
+.ResetValue:
+		mov #$FD, VRMAD1
+		mov #0, VTRBF
+		mov #$FF, VTRBF
+		clr1 VSEL, 4 ; autoinc off
+		mov #$17, VTRBF
+.KeepValue:
+		clr1 VSEL, 4 ; autoinc off
 
 		mov #%10000001, Flags
-		mov #25, ScreenCount
+		ld VTRBF
+		st ScreenCount
 		mov #0, RTCT_Low
 		mov #16, RTCT_High
 		mov #0, ScreenNum
 
-		mov #0, BTCR
 		mov #0, CNR
 		mov #0, TDR
 
@@ -88,9 +107,16 @@ Start:
 
 	call SUB_ProcessKeys ; call it twice to nullify any keys the user is holding when entering the app
 
+
+;    /////////////////////////////////////////////////////////////
+;   ///                       MAIN LOOP                       ///
 ;  /////////////////////////////////////////////////////////////
 MainLoop:
 	call SUB_ProcessKeys
+
+	bn KeysDiff, 7, .NoSlp
+	jmp BeginDelaySelect
+.NoSlp:
 
 	bn KeysDiff, 2, .NoLeft
 		ld ScreenNum
@@ -104,10 +130,6 @@ MainLoop:
 		inc ScreenNum
 .NoRight:
 
-	bn KeysDiff, 6, .NoMode
-		mov #%01110010, BTCR ; reset to halfsec mode because the BIOS don't reset BTCR
-	jmpf Exit_BIOS
-.NoMode:
 
 ;  ///////////////////////////////////////////////////////////// screen copy/display
 	bn Flags, 7, .NoUpdate
@@ -174,6 +196,90 @@ MainLoop:
 	jmp MainLoop
 
 
+;    /////////////////////////////////////////////////////////////
+;   ///                       CONF LOOP                       ///
+;  /////////////////////////////////////////////////////////////
+BeginDelaySelect:
+		clr1 VSEL, 4 ; autoinc off
+		mov #<NumbersBase, TRL
+		mov #>NumbersBase, TRH
+		
+		mov #0, XBNK
+		mov #$80, 2
+.clrscr:
+		mov #12, B
+		xor ACC
+.clrloop:
+		st @r2
+		inc 2
+	dbnz B, .clrloop
+		ld 2
+		add #4
+		st 2
+	bn PSW, 7, .clrscr
+	bp XBNK, 0, .clrdone
+		inc XBNK
+		set1 2, 7
+	br .clrscr
+.clrdone:
+
+;  ///////////////////////////////////////////////////////////// simple number display to select initial sync wait
+DelaySelectLoop:
+
+	call SUB_ProcessKeys
+	bn KeysDiff, 7, .NoSlp
+	jmp MainLoop
+.NoSlp:
+
+	bn KeysDiff, 0, .NoUp
+		ld VTRBF
+		add #$10
+		st VTRBF
+.NoUp:
+
+	bn KeysDiff, 1, .NoDown
+		ld VTRBF
+		sub #$10
+		st VTRBF
+.NoDown:
+
+	bn KeysDiff, 2, .NoLeft
+		dec VTRBF
+.NoLeft:
+
+	bn KeysDiff, 3, .NoRight
+		inc VTRBF
+.NoRight:
+
+	bn Flags, 7, .NoUpdate
+		clr1 Flags, 7
+
+		ld VTRBF ; display high digit
+		ror
+		ror
+		ror
+		ror
+		and #$0F
+		mov #$80, 2
+		mov #0, XBNK
+	call SUB_DispNum
+		ld VTRBF ; display low digit
+		and #$0F
+		mov #$81, 2
+	call SUB_DispNum
+
+.NoUpdate:
+
+	bn Flags, 5, .NoSecond
+		clr1 Flags, 5
+		mov #2, XBNK
+		not1 $183, 2
+.NoSecond:
+
+		set1 PCON, 0
+	jmp DelaySelectLoop
+
+
 
 ;    /////////////////////////////////////////////////////////////
 ;   ///                     SUBROUTINES                       ///
@@ -188,13 +294,50 @@ SUB_ProcessKeys:
 		xor KeysLast
 		and KeysCurr
 		st KeysDiff
+		
+	bn KeysDiff, 6, .NoMode
+		mov #%01110010, BTCR ; reset to halfsec mode because the BIOS don't reset BTCR
+	jmpf Exit_BIOS
+.NoMode:
+		
 	ret
 
+
+SUB_DispNum:
+		mov #6, B
+		st C
+		xor ACC
+		mul
+		mov #3, B
+.loop:
+		ld C
+		inc C
+		ldc
+		st @r2
+		
+		ld 2
+		add #6
+		st 2
+		
+		ld C
+		inc C
+		ldc
+		st @r2
+		
+		ld 2
+		add #10
+		st 2
+		
+	dbnz B, .loop
+	ret
 
 
 ;    /////////////////////////////////////////////////////////////
 ;   ///                     DATA SECTION                      ///
 ;  /////////////////////////////////////////////////////////////
+NumbersBase:
+.include sprite "vmu_font0.png" header="no"
+
 ImageBase:
 
 .include sprite "vmu_img0.png" header="no"
