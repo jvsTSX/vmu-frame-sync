@@ -21,4 +21,4 @@ This program runs entirely off the 1MHz clock after it finishes initializing the
 
 ## Emulation Support
 - Elysian VMU won't run this at the correct rate, but it will run it still, just very slow.
-- VM2 crashes when launching the ROM. (Thanks to Derek for testing it!)
+- VM2 works fine (Chris fixed it!), a bit flickery but the effect still works very well.
